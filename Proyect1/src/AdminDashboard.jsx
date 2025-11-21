@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FUNCTIONS } from './functionsConfig';
+import { FUNCTIONS } from './functionsConfig'; // Tu archivo de configuración
 
 export function AdminDashboard({ ClientCall, estado, objectId, setObjectId, respuesta }) {
     // Estado compartido para el ID de la empresa con la que vamos a trabajar

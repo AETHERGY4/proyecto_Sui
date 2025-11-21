@@ -1,28 +1,25 @@
+// LIBRERIAS
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { SuiClientProvider, WalletProvider } from "@mysten/dapp-kit"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { getFullnodeUrl } from "@mysten/sui.js/client"
+import { networkConfig } from './networkConfig.js'
 
+// DISEÑOS
 import './index.css'
 import App from './App.jsx'
+import "@mysten/dapp-kit/dist/index.css"
 
-const queryClient = new QueryClient()
-
-const networks = {
-  devnet: { url: getFullnodeUrl('devnet') },
-  testnet: { url: getFullnodeUrl('testnet') },
-  mainnet: { url: getFullnodeUrl('mainnet') }
-}
+const queryClient = new QueryClient();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networks} defaultNetwork="devnet">
-        <WalletProvider>
+      <SuiClientProvider networks={networkConfig}>
+        <WalletProvider autoConnect>
           <App />
         </WalletProvider>
-      </SuiClientProvider>
+      </SuiClientProvider> 
     </QueryClientProvider>
-  </StrictMode>
+  </StrictMode>,
 )
