@@ -1,260 +1,360 @@
-import React, { useState, useEffect } from 'react'
+import { useSuiClient, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
+import { isValidSuiObjectId } from "@mysten/sui/utils";
+import { useNetworkVariable } from "./networkConfig";
+import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
+import { useState } from 'react';
+import video from './video.mp4'
+
 import './App.css'
+import FormInicial from "./formInicial";
+import { AdminDashboard } from "./AdminDashboard";
 
 function App() {
-  const [tasks, setTasks] = useState([])
-  const [taskInput, setTaskInput] = useState('')
-  const [timer, setTimer] = useState(25 * 60)
-  const [isRunning, setIsRunning] = useState(false)
-  const [focusMode, setFocusMode] = useState(false)
+  const suiClient = useSuiClient()
+  const cuenta = useCurrentAccount()
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction()
+  const [estado, cambiarEstado] = useState(false);
+  const [respuesta, cambiarRespuesta] = useState(null);
+  const [nuevaEmpresa, setNuevaEmpresa] = useState(false)
+  const [objectId, setObjectId] = useState(() => {
+    const hash = window.location.hash.slice(1);
+    return isValidSuiObjectId(hash) ? hash : null;
+  });
+  const packageId = useNetworkVariable("PackageId");
+  const modulo = "empresa"
 
-  // Cargar tareas del localStorage
-  useEffect(() => {
-    const savedTasks = localStorage.getItem('focusflow-tasks')
-    if (savedTasks) {
-      setTasks(JSON.parse(savedTasks))
-    }
-  }, [])
-
-  // Timer effect
-  useEffect(() => {
-    let interval
-    if (isRunning && timer > 0) {
-      interval = setInterval(() => {
-        setTimer(timer => timer - 1)
-      }, 1000)
-    } else if (timer === 0) {
-      setIsRunning(false)
-      // Notificación de tiempo completado
-      if (Notification.permission === 'granted') {
-        new Notification('¡Tiempo completado!', {
-          body: 'Tu sesión de enfoque ha terminado. Toma un descanso.',
-        })
-      }
-    }
-    return () => clearInterval(interval)
-  }, [isRunning, timer])
-
-  const addTask = () => {
-    if (taskInput.trim()) {
-      const newTasks = [...tasks, { text: taskInput, completed: false, id: Date.now() }]
-      setTasks(newTasks)
-      localStorage.setItem('focusflow-tasks', JSON.stringify(newTasks))
-      setTaskInput('')
-    }
-  }
-
-  const toggleTask = (id) => {
-    const newTasks = tasks.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    )
-    setTasks(newTasks)
-    localStorage.setItem('focusflow-tasks', JSON.stringify(newTasks))
-  }
-
-  const deleteTask = (id) => {
-    const newTasks = tasks.filter(task => task.id !== id)
-    setTasks(newTasks)
-    localStorage.setItem('focusflow-tasks', JSON.stringify(newTasks))
-  }
-
-  const startTimer = () => setIsRunning(true)
-  const pauseTimer = () => setIsRunning(false)
-  const resetTimer = () => {
-    setIsRunning(false)
-    setTimer(25 * 60)
-  }
-
-  const setTimerMode = (minutes) => {
-    setIsRunning(false)
-    setTimer(minutes * 60)
-  }
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const getFocusScore = () => {
-    const completed = tasks.filter(t => t.completed).length
-    const total = tasks.length || 1
-    return Math.round((completed / total) * 100)
-  }
-
-  const getAISuggestion = () => {
-    const hour = new Date().getHours()
-    const pendingTasks = tasks.filter(t => !t.completed).length
+    async function ClientCall(params) {
     
-    if (hour < 12 && pendingTasks > 3) {
-      return "¡Buenos días! Te recomiendo enfocarte en las 3 tareas más importantes antes del almuerzo."
-    } else if (pendingTasks === 0) {
-      return "¡Excelente! Has completado todas tus tareas. Considera planificar el día de mañana."
-    } else {
-      return "Basado en tus patrones, te sugiero trabajar en bloques de 25 minutos con descansos de 5 minutos."
+    cambiarEstado(true);
+
+    try {
+      cambiarRespuesta(null);
+
+      const tx = new Transaction();
+
+      // ===============================
+      // 1) SERIALIZACIÓN DE ARGUMENTOS
+      // ===============================
+      const args = params.args.map((arg, idx) => {
+        console.log("ARG RAW", idx, arg);
+
+        // 1. ObjectID válido → tx.object(...)
+        if (typeof arg === "string" && isValidSuiObjectId(arg)) {
+          console.log(`Arg[${idx}] es ObjectID → tx.object(${arg})`);
+          return tx.object(arg);
+        }
+
+        // 2. Tipos explícitos { type, value }
+        if (arg && typeof arg === "object" && "type" in arg) {
+          const { type, value } = arg;
+
+          switch (type) {
+            case "u8": return tx.pure.u8(Number(value));
+            case "u16": return tx.pure.u16(Number(value));
+            case "u32": return tx.pure.u32(Number(value));
+            case "u64": return tx.pure.u64(BigInt(value));
+            case "u128": return tx.pure.u128(BigInt(value));
+            case "bool": return tx.pure.bool(Boolean(value));
+            case "string": return tx.pure.string(String(value));
+            case "address": return tx.pure.address(value);
+            default:
+              console.warn(`Tipo no manejado (${type}), usando tx.pure`);
+              return tx.pure(value);
+          }
+        }
+
+        // 3. Inferencias básicas
+        if (typeof arg === "boolean") return tx.pure.bool(arg);
+        if (typeof arg === "number") return tx.pure.u64(BigInt(arg));
+        if (typeof arg === "bigint") return tx.pure.u64(arg);
+        if (typeof arg === "string") return tx.pure.string(arg);
+
+        // 4. Fallback
+        console.warn(`Arg[${idx}] fallback → tx.pure(arg)`);
+        return tx.pure(arg);
+      });
+
+      console.log("ARGS FINAL →", args);
+
+      // ===============================
+      // 2) CONSTRUIR MOVE CALL
+      // ===============================
+      tx.moveCall({
+        target: `${packageId}::${modulo}::${params.funcion}`,
+        arguments: args,
+      });
+
+      console.log("TARGET:", `${packageId}::${modulo}::${params.funcion}`);
+
+      // ====================================
+      // 3) DETECTAR SI ES FUNCIÓN "VIEW"
+      // ====================================
+      const esLectura =
+        params?.soloLectura === 1 ||
+        params?.soloLectura === "1" ||
+        params?.soloLectura === true ||
+        params?.soloLectura === "true";
+
+      // =======================================================
+      // CASE 1: FUNCIÓN DE SOLO LECTURA → devInspect
+      // =======================================================
+      if (esLectura) {
+        console.log("FUNCIÓN VIEW → ejecutando devInspect…");
+
+        const result = await suiClient.devInspectTransactionBlock({
+          sender: cuenta.address,
+          transactionBlock: tx,
+        });
+
+        console.log("devInspect result:", result);
+
+        const decoded = decodeReturnValues(result);
+        // cambiarRespuesta(decoded);
+        if (params.funcion === "retornar_todo"){
+          cambiarRespuesta(`El usuario: ${decoded[4]}, que tiene un año de registro del: ${decoded[0]}, tiene un porcentaje de descuento del: ${decoded[3]['raw'][1]}, y una direccion de facturacion: ${decoded[1]}`)
+        }
+        
+
+        return decoded;
+      }
+
+      // =======================================================
+      // CASE 2: TRANSACCIÓN REAL
+      // =======================================================
+      console.log("FUNCIÓN MUTANTE → firmando transacción…");
+
+      signAndExecute(
+        { transaction: tx },
+        {
+          onSuccess: async (txres) => {
+            const result = await suiClient.waitForTransaction({
+              digest: txres.digest,
+              options: { showEffects: true, showEvents: true },
+            });
+
+            console.log("RESULTADO EJECUCIÓN:", result);
+
+            const decoded = decodeReturnValues(result);
+            if (decoded !== null) cambiarRespuesta(decoded);
+
+            // Si se creó una empresa, actualizar ID
+            if (params.funcion === "crear_empresa") {
+              const id = result.effects?.created?.[0]?.reference?.objectId;
+              if (id) {
+                setObjectId(id);
+                window.location.hash = id;
+                setNuevaEmpresa(true);
+              }
+            }
+          },
+          onError: (err) => {
+            alert("Error al enviar transacción: " + err.message);
+          },
+        }
+      );
+    } catch (error) {
+      alert("Hubo un error: " + error.message);
+      console.error(error);
+    } finally {
+      cambiarEstado(false);
     }
   }
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      addTask()
+  //
+  // ========================================
+  // DECODIFICADOR UNIVERSAL DE RETURN VALUES
+  // ========================================
+  //
+  function decodeReturnValues(result) {
+    try {
+      const values =
+        result.results?.[0]?.returnValues ||
+        result.effects?.returnValues;
+
+      if (!values || values.length === 0) return null;
+
+      const decoded = values.map(([bytes, typeTag]) => {
+        return decodeByType(bytes, typeTag);
+      });
+
+      return decoded.length === 1 ? decoded[0] : decoded;
+    } catch (err) {
+      console.warn("decodeReturnValues ERROR:", err);
+      return null;
     }
   }
 
+  //
+  // ===========================
+  // DECODIFICACIÓN POR TIPO
+  // ===========================
+  //
+  function decodeByType(bytes, typeTag) {
+    const arr = Uint8Array.from(bytes);
+
+    if (!typeTag) return null;
+
+    // PRIMITIVOS
+    if (typeTag === "u8") return arr[0];
+    if (typeTag === "u16") return new DataView(arr.buffer).getUint16(0, true);
+    if (typeTag === "u32") return new DataView(arr.buffer).getUint32(0, true);
+    if (typeTag === "u64") {
+      // arr viene en formato little-endian → revertir
+      const reversed = Array.from(arr).reverse();
+
+      // Convertir a hex WITHOUT Buffer
+      const hex = reversed
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      // Crear BigInt desde hex
+      return BigInt("0x" + hex);
+    }
+
+
+    if (typeTag === "bool") return arr[0] === 1;
+
+    // STRING
+    if (typeTag === "0x1::string::String") {
+      return decodeBCSString(bytes);
+    }
+
+    // VECTOR<STRING>
+    if (typeTag.startsWith("vector<0x1::string::String>")) {
+      return decodeBCSVectorString(bytes);
+    }
+
+    // STRUCT (ej: Nivel)
+    if (typeTag.includes("Nivel")) {
+      return decodeNivel(bytes);
+    }
+
+    return "<?> Tipo no soportado: " + typeTag;
+  }
+
+  //
+  // ===========================
+  // DECODIFICAR STRING BCS
+  // ===========================
+  //
+  function decodeBCSString(bytes) {
+    const arr = Uint8Array.from(bytes);
+    let length = 0;
+    let shift = 0;
+    let offset = 0;
+
+    while (offset < arr.length) {
+      const byte = arr[offset++];
+      length |= (byte & 0x7F) << shift;
+      if ((byte & 0x80) === 0) break;
+      shift += 7;
+    }
+
+    const content = arr.slice(offset, offset + length);
+    return new TextDecoder().decode(content);
+  }
+
+  //
+  // ===========================
+  // DECODIFICAR vector<String>
+  // ===========================
+  //
+  function decodeBCSVectorString(bytes) {
+    const arr = Uint8Array.from(bytes);
+    let offset = 0;
+
+    // tamaño del vector
+    let vecLen = 0;
+    let shift = 0;
+
+    while (true) {
+      const byte = arr[offset++];
+      vecLen |= (byte & 0x7F) << shift;
+      if ((byte & 0x80) === 0) break;
+      shift += 7;
+    }
+
+    const items = [];
+
+    for (let i = 0; i < vecLen; i++) {
+      // longitud del string
+      let len = 0;
+      shift = 0;
+
+      while (true) {
+        const byte = arr[offset++];
+        len |= (byte & 0x7F) << shift;
+        if ((byte & 0x80) === 0) break;
+        shift += 7;
+      }
+
+      const content = arr.slice(offset, offset + len);
+      offset += len;
+
+      items.push(new TextDecoder().decode(content));
+    }
+
+    return items;
+    }
+
+    //
+    // ===========================
+    // DECODIFICADOR STRUCT NIVEL
+    // ===========================
+    //
+    function decodeNivel(bytes) {
+      // const arr = Uint8Array.from(bytes);
+
+      // if (arr.length < 2) {
+      //   return { tipo: "desconocido", descuento: null };
+      // }
+
+      // const variant = arr[0];
+      // const descuento = arr[1]; // u8 directo
+
+      // const variants = ["cobre", "plata", "oro", "diamante"];
+
+      // return {
+      //   tipo: variants[variant] ?? "desconocido",
+      //   descuento
+      // };
+      return { raw: bytes };
+  }
+  
   return (
-    <div className="container">
-      <header className="header">
-        <div className="logo">
-          <i className="fas fa-brain"></i>
-          <h1>FocusFlow <span className="ai-text">AI</span></h1>
-        </div>
-        <div className="user-stats">
-          <div className="stat">
-            <span className="stat-value">{getFocusScore()}%</span>
-            <span className="stat-label">Enfoque</span>
-          </div>
-          <div className="stat">
-            <span className="stat-value">{tasks.filter(t => t.completed).length}</span>
-            <span className="stat-label">Completadas</span>
-          </div>
-        </div>
-      </header>
 
-      <main className="main-content">
-        <div className="ai-recommendation">
-          <div className="recommendation-header">
-            <i className="fas fa-robot"></i>
-            <h3>Recomendación de IA</h3>
-          </div>
-          <p>{getAISuggestion()}</p>
-        </div>
+    <div>
+      <video autoPlay loop playsInline muted className="back-video" >
+        <source src={video} type="video.mp4"/>
+      </video>
+      <div className="app-header">
+        <a>
+          <img className="logo" src="WayLearn_logo-horizontal_texto-blanco.png" onClick={() => setNuevaEmpresa(false)}/>
+        </a>
+        <ConnectButton />
+      </div>
+        {!nuevaEmpresa && <h1 style={{marginTop:"200px", fontSize:"80px"}}> Crea tu Empresa con WayLearn </h1>}
+        {!cuenta ?  
+        <h3 style={{marginTop:"50px", fontSize:"20px"}}> Antes de continuar conecta tu wallet </h3> : ( nuevaEmpresa ?
+        <AdminDashboard 
+          ClientCall={ClientCall}
+          estado={estado}
+          objectId={objectId}
+          setObjectId={setObjectId}
+          respuesta={respuesta}
+          /> :
+        <FormInicial 
+          ClientCall={ClientCall}
+          estado={estado}
+          setNuevaEmpresa={setNuevaEmpresa}
+        />
+      
+        )}
+        
+      <div>
 
-        <div className="dashboard-grid">
-          {/* Gestor de Tareas */}
-          <div className="card task-manager">
-            <h3><i className="fas fa-tasks"></i> Gestor de Tareas</h3>
-            <div className="task-input">
-              <input
-                type="text"
-                value={taskInput}
-                onChange={(e) => setTaskInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Agregar nueva tarea..."
-              />
-              <button onClick={addTask}>
-                <i className="fas fa-plus"></i>
-              </button>
-            </div>
-            <div className="task-list">
-              {tasks.map((task) => (
-                <div key={task.id} className={`task-item ${task.completed ? 'completed' : ''}`}>
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={task.completed}
-                      onChange={() => toggleTask(task.id)}
-                    />
-                    <span className="checkmark"></span>
-                  </label>
-                  <span className="task-text">{task.text}</span>
-                  <button 
-                    className="delete-task"
-                    onClick={() => deleteTask(task.id)}
-                  >
-                    <i className="fas fa-trash"></i>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Timer de Enfoque */}
-          <div className="card focus-timer">
-            <h3><i className="fas fa-clock"></i> Tiempo de Enfoque</h3>
-            <div className="timer-display">
-              <div className="time">{formatTime(timer)}</div>
-              <div className="timer-controls">
-                <button 
-                  className="btn-primary" 
-                  onClick={startTimer}
-                  disabled={isRunning}
-                >
-                  Iniciar
-                </button>
-                <button 
-                  className="btn-secondary" 
-                  onClick={pauseTimer}
-                  disabled={!isRunning}
-                >
-                  Pausar
-                </button>
-                <button className="btn-outline" onClick={resetTimer}>
-                  Reiniciar
-                </button>
-              </div>
-            </div>
-            <div className="timer-modes">
-              <button className="mode-btn" onClick={() => setTimerMode(25)}>
-                Enfoque (25m)
-              </button>
-              <button className="mode-btn" onClick={() => setTimerMode(5)}>
-                Descanso Corto (5m)
-              </button>
-              <button className="mode-btn" onClick={() => setTimerMode(15)}>
-                Descanso Largo (15m)
-              </button>
-            </div>
-          </div>
-
-          {/* Bloqueador de Distracciones */}
-          <div className="card distraction-blocker">
-            <h3><i className="fas fa-shield-alt"></i> Bloqueador de Distracciones</h3>
-            <div className="blocker-list">
-              <div className="blocker-item">
-                <span>Redes Sociales</span>
-                <label className="switch">
-                  <input 
-                    type="checkbox" 
-                    checked={focusMode}
-                    onChange={(e) => setFocusMode(e.target.checked)}
-                  />
-                  <span className="slider"></span>
-                </label>
-              </div>
-              <div className="blocker-item">
-                <span>Notificaciones</span>
-                <label className="switch">
-                  <input type="checkbox" />
-                  <span className="slider"></span>
-                </label>
-              </div>
-            </div>
-            <button className={`btn-primary ${focusMode ? 'active' : ''}`}>
-              <i className="fas fa-play"></i> 
-              {focusMode ? 'Modo Enfoque Activado' : 'Activar Modo Enfoque'}
-            </button>
-          </div>
-
-          {/* Análisis de Productividad */}
-          <div className="card analytics">
-            <h3><i className="fas fa-chart-line"></i> Análisis de Productividad</h3>
-            <div className="analytics-content">
-              <div className="metric">
-                <span className="metric-value">2.5h</span>
-                <span className="metric-label">Horas esta semana</span>
-              </div>
-              <div className="metric">
-                <span className="metric-value">{getFocusScore()}%</span>
-                <span className="metric-label">Tasa de completación</span>
-              </div>
-              <div className="chart-placeholder">
-                <i className="fas fa-chart-bar"></i>
-                <p>Gráfico de productividad</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
+      </div>
     </div>
   )
 }
