@@ -8,7 +8,7 @@ import video from './video.mp4'
 
 import './App.css'
 import InstitutionForm from "./InstitutionForm";
-import { CertificateDashboard } from "./InstitutionForm";
+import { CertificateDashboard } from "./CertificateDashboard";
 
 function App() {
   const suiClient = useSuiClient()
