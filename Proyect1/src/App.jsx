@@ -4,8 +4,6 @@ import { isValidSuiObjectId } from "@mysten/sui/utils";
 import { useNetworkVariable } from "./networkConfig";
 import { ConnectButton, useCurrentAccount } from "@mysten/dapp-kit";
 import { useState } from 'react';
-import video from './video.mp4'
-
 import './App.css'
 import InstitutionForm from "./InstitutionForm";
 import { CertificateDashboard } from "./CertificateDashboard";
@@ -24,8 +22,7 @@ function App() {
   const packageId = useNetworkVariable("PackageId");
   const modulo = "empresa"
 
-    async function ClientCall(params) {
-    
+  async function ClientCall(params) {
     cambiarEstado(true);
 
     try {
@@ -33,22 +30,13 @@ function App() {
 
       const tx = new Transaction();
 
-      // ===============================
-      // 1) SERIALIZACIÓN DE ARGUMENTOS
-      // ===============================
       const args = params.args.map((arg, idx) => {
-        console.log("ARG RAW", idx, arg);
-
-        // 1. ObjectID válido → tx.object(...)
         if (typeof arg === "string" && isValidSuiObjectId(arg)) {
-          console.log(`Arg[${idx}] es ObjectID → tx.object(${arg})`);
           return tx.object(arg);
         }
 
-        // 2. Tipos explícitos { type, value }
         if (arg && typeof arg === "object" && "type" in arg) {
           const { type, value } = arg;
-
           switch (type) {
             case "u8": return tx.pure.u8(Number(value));
             case "u16": return tx.pure.u16(Number(value));
@@ -58,71 +46,41 @@ function App() {
             case "bool": return tx.pure.bool(Boolean(value));
             case "string": return tx.pure.string(String(value));
             case "address": return tx.pure.address(value);
-            default:
-              console.warn(`Tipo no manejado (${type}), usando tx.pure`);
-              return tx.pure(value);
+            default: return tx.pure(value);
           }
         }
 
-        // 3. Inferencias básicas
         if (typeof arg === "boolean") return tx.pure.bool(arg);
         if (typeof arg === "number") return tx.pure.u64(BigInt(arg));
         if (typeof arg === "bigint") return tx.pure.u64(arg);
         if (typeof arg === "string") return tx.pure.string(arg);
 
-        // 4. Fallback
-        console.warn(`Arg[${idx}] fallback → tx.pure(arg)`);
         return tx.pure(arg);
       });
 
-      console.log("ARGS FINAL →", args);
-
-      // ===============================
-      // 2) CONSTRUIR MOVE CALL
-      // ===============================
       tx.moveCall({
         target: `${packageId}::${modulo}::${params.funcion}`,
         arguments: args,
       });
 
-      console.log("TARGET:", `${packageId}::${modulo}::${params.funcion}`);
-
-      // ====================================
-      // 3) DETECTAR SI ES FUNCIÓN "VIEW"
-      // ====================================
       const esLectura =
         params?.soloLectura === 1 ||
         params?.soloLectura === "1" ||
         params?.soloLectura === true ||
         params?.soloLectura === "true";
 
-      // =======================================================
-      // CASE 1: FUNCIÓN DE SOLO LECTURA → devInspect
-      // =======================================================
       if (esLectura) {
-        console.log("FUNCIÓN VIEW → ejecutando devInspect…");
-
         const result = await suiClient.devInspectTransactionBlock({
           sender: cuenta.address,
           transactionBlock: tx,
         });
 
-        console.log("devInspect result:", result);
-
         const decoded = decodeReturnValues(result);
-        // cambiarRespuesta(decoded);
         if (params.funcion === "retornar_todo"){
-          cambiarRespuesta(`El estudiante: ${decoded[4]}, que ingresó en el año: ${decoded[0]}, tiene un nivel académico con beneficios del: ${decoded[3]['raw'][1]}%, y reside en: ${decoded[1]}`)
+          cambiarRespuesta(`🎓 Estudiante: ${decoded[4]}\n📅 Año de ingreso: ${decoded[0]}\n⭐ Nivel académico: ${decoded[3]['raw'][1]}% de beneficios\n🏠 Dirección: ${decoded[1]}`)
         }
-        
-
         return decoded;
       }
-
-      // =======================================================
-      // CASE 2: TRANSACCIÓN REAL
-      // =======================================================
-      console.log("FUNCIÓN MUTANTE → firmando transacción…");
 
       signAndExecute(
         { transaction: tx },
@@ -133,12 +91,9 @@ function App() {
               options: { showEffects: true, showEvents: true },
             });
 
-            console.log("RESULTADO EJECUCIÓN:", result);
-
             const decoded = decodeReturnValues(result);
             if (decoded !== null) cambiarRespuesta(decoded);
 
-            // Si se creó una institución, actualizar ID
             if (params.funcion === "crear_empresa") {
               const id = result.effects?.created?.[0]?.reference?.objectId;
               if (id) {
@@ -161,19 +116,12 @@ function App() {
     }
   }
 
-  // ... (mantener las mismas funciones de decodeReturnValues, decodeByType, etc.)
+  // Funciones de decodificación (mantener igual que antes)
   function decodeReturnValues(result) {
     try {
-      const values =
-        result.results?.[0]?.returnValues ||
-        result.effects?.returnValues;
-
+      const values = result.results?.[0]?.returnValues || result.effects?.returnValues;
       if (!values || values.length === 0) return null;
-
-      const decoded = values.map(([bytes, typeTag]) => {
-        return decodeByType(bytes, typeTag);
-      });
-
+      const decoded = values.map(([bytes, typeTag]) => decodeByType(bytes, typeTag));
       return decoded.length === 1 ? decoded[0] : decoded;
     } catch (err) {
       console.warn("decodeReturnValues ERROR:", err);
@@ -183,91 +131,57 @@ function App() {
 
   function decodeByType(bytes, typeTag) {
     const arr = Uint8Array.from(bytes);
-
     if (!typeTag) return null;
-
-    // PRIMITIVOS
     if (typeTag === "u8") return arr[0];
     if (typeTag === "u16") return new DataView(arr.buffer).getUint16(0, true);
     if (typeTag === "u32") return new DataView(arr.buffer).getUint32(0, true);
     if (typeTag === "u64") {
       const reversed = Array.from(arr).reverse();
-      const hex = reversed
-        .map(b => b.toString(16).padStart(2, "0"))
-        .join("");
+      const hex = reversed.map(b => b.toString(16).padStart(2, "0")).join("");
       return BigInt("0x" + hex);
     }
-
     if (typeTag === "bool") return arr[0] === 1;
-
-    // STRING
-    if (typeTag === "0x1::string::String") {
-      return decodeBCSString(bytes);
-    }
-
-    // VECTOR<STRING>
-    if (typeTag.startsWith("vector<0x1::string::String>")) {
-      return decodeBCSVectorString(bytes);
-    }
-
-    // STRUCT (ej: Nivel)
-    if (typeTag.includes("Nivel")) {
-      return decodeNivel(bytes);
-    }
-
+    if (typeTag === "0x1::string::String") return decodeBCSString(bytes);
+    if (typeTag.startsWith("vector<0x1::string::String>")) return decodeBCSVectorString(bytes);
+    if (typeTag.includes("Nivel")) return decodeNivel(bytes);
     return "<?> Tipo no soportado: " + typeTag;
   }
 
   function decodeBCSString(bytes) {
     const arr = Uint8Array.from(bytes);
-    let length = 0;
-    let shift = 0;
-    let offset = 0;
-
+    let length = 0, shift = 0, offset = 0;
     while (offset < arr.length) {
       const byte = arr[offset++];
       length |= (byte & 0x7F) << shift;
       if ((byte & 0x80) === 0) break;
       shift += 7;
     }
-
     const content = arr.slice(offset, offset + length);
     return new TextDecoder().decode(content);
   }
 
   function decodeBCSVectorString(bytes) {
     const arr = Uint8Array.from(bytes);
-    let offset = 0;
-
-    let vecLen = 0;
-    let shift = 0;
-
+    let offset = 0, vecLen = 0, shift = 0;
     while (true) {
       const byte = arr[offset++];
       vecLen |= (byte & 0x7F) << shift;
       if ((byte & 0x80) === 0) break;
       shift += 7;
     }
-
     const items = [];
-
     for (let i = 0; i < vecLen; i++) {
-      let len = 0;
-      shift = 0;
-
+      let len = 0; shift = 0;
       while (true) {
         const byte = arr[offset++];
         len |= (byte & 0x7F) << shift;
         if ((byte & 0x80) === 0) break;
         shift += 7;
       }
-
       const content = arr.slice(offset, offset + len);
       offset += len;
-
       items.push(new TextDecoder().decode(content));
     }
-
     return items;
   }
 
@@ -276,35 +190,46 @@ function App() {
   }
   
   return (
-    <div>
-      <video autoPlay loop playsInline muted className="back-video" >
-        <source src={video} type="video.mp4"/>
-      </video>
-      <div className="app-header">
-        <a>
-          <img className="logo" src="WayLearn_logo-horizontal_texto-blanco.png" onClick={() => setInstitucionCreada(false)}/>
-        </a>
+    <div className="app-container">
+      <header className="certification-header">
+        <div className="brand">
+          <div className="brand-logo">🎓</div>
+          <div className="brand-text">
+            <h1>CertiChain Pro</h1>
+            <div className="subtitle">Sistema de Certificación Digital</div>
+          </div>
+        </div>
         <ConnectButton />
-      </div>
-        {!institucionCreada && <h1 style={{marginTop:"200px", fontSize:"80px"}}> 🎓 Sistema de Certificados Académicos </h1>}
-        {!cuenta ?  
-        <h3 style={{marginTop:"50px", fontSize:"20px"}}> 🔗 Conecta tu wallet para comenzar </h3> : ( institucionCreada ?
-        <CertificateDashboard 
-          ClientCall={ClientCall}
-          estado={estado}
-          objectId={objectId}
-          setObjectId={setObjectId}
-          respuesta={respuesta}
-          /> :
-        <InstitutionForm 
-          ClientCall={ClientCall}
-          estado={estado}
-          setInstitucionCreada={setInstitucionCreada}
-        />
+      </header>
+
+      <main className="main-content">
+        {!cuenta ? (
+          <div className="hero-section">
+            <h1 className="hero-title">Sistema de Certificación Blockchain</h1>
+            <p className="hero-subtitle">
+              Gestiona certificados académicos de forma segura, transparente y verificable 
+              utilizando la tecnología Sui Blockchain.
+            </p>
+            <div style={{marginTop: '2rem'}}>
+              <ConnectButton />
+            </div>
+          </div>
+        ) : institucionCreada ? (
+          <CertificateDashboard 
+            ClientCall={ClientCall}
+            estado={estado}
+            objectId={objectId}
+            setObjectId={setObjectId}
+            respuesta={respuesta}
+          />
+        ) : (
+          <InstitutionForm 
+            ClientCall={ClientCall}
+            estado={estado}
+            setInstitucionCreada={setInstitucionCreada}
+          />
         )}
-        
-      <div>
-      </div>
+      </main>
     </div>
   )
 }

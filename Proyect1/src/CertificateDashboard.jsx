@@ -4,65 +4,49 @@ import { FUNCTIONS } from './functionsConfig';
 export function CertificateDashboard({ ClientCall, estado, objectId, setObjectId, respuesta }) {
 
     return (
-        <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto", marginTop: "50px" }}>
-            
-            {/* HEADER: Input para ID de Institución */}
-            <div style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "15px",
-                marginBottom: "40px",
-                padding: "20px",
-                background: "#f9f9f9",
-                borderRadius: "12px"
-            }}>
-                <h2 style={{ color: "#333", margin: "0" }}>🎓 Panel de Gestión Académica</h2>
-                <input 
-                    type="text" 
-                    placeholder="Pega aquí el ID de la Institución a gestionar (0x...)"
-                    value={objectId}
-                    onChange={(e) => setObjectId(e.target.value)}
-                    style={{
-                        padding: "12px 20px",
-                        fontSize: "16px",
-                        borderRadius: "8px",
-                        border: "1px solid #ccc",
-                        width: "100%",
-                        maxWidth: "500px",
-                        textAlign: "center",
-                        fontFamily: "monospace"
-                    }}
-                />
+        <div>
+            {/* Header del Dashboard */}
+            <div className="hero-section">
+                <h1 className="hero-title">Panel de Certificación</h1>
+                <p className="hero-subtitle">
+                    Gestiona estudiantes, emite certificados y consulta historiales académicos de forma segura.
+                </p>
+                
+                <div style={{maxWidth: '600px', margin: '0 auto'}}>
+                    <div className="form-group">
+                        <label className="form-label">ID de la Institución</label>
+                        <input 
+                            type="text" 
+                            placeholder="Pega aquí el ID de la Institución (0x...)"
+                            className="form-input"
+                            value={objectId}
+                            onChange={(e) => setObjectId(e.target.value)}
+                            style={{textAlign: 'center', fontFamily: 'monospace'}}
+                        />
+                    </div>
+                </div>
             </div>
-            
+
+            {/* Panel de Resultados */}
             {respuesta !== null && (
-                <div style={{
-                    padding: "15px",
-                    background: "#ffffffff",
-                    borderRadius: "10px",
-                    marginBottom: "25px",
-                    textAlign: "center",
-                    border: "1px solid #d6b8ff"
-                }}>
-                    <strong style={{color:'black'}}>📊 Resultado Académico:</strong>
-                    <pre style={{
-                    whiteSpace: "pre-wrap",
-                    marginTop: "10px",
-                    color: "#4a148c",
-                    fontFamily: "monospace"
-                    }}>
-                    {JSON.stringify(respuesta, null, 2)}
-                    </pre>
+                <div className="result-panel">
+                    <h3 className="result-title">📊 Resultado de la Consulta</h3>
+                    <div className="result-content">
+                        {typeof respuesta === 'string' ? respuesta : JSON.stringify(respuesta, null, 2)}
+                    </div>
                 </div>
             )}
 
-            {/* GRID DE FUNCIONES ACADÉMICAS */}
-            <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))",
-                gap: "25px"
-            }}>
+            {/* Estado de carga */}
+            {estado && (
+                <div className="loading-state">
+                    <div className="loading-spinner"></div>
+                    <span>Procesando transacción...</span>
+                </div>
+            )}
+
+            {/* Grid de Funciones */}
+            <div className="functions-grid">
                 {FUNCTIONS.map((config, index) => (
                     <AcademicFunctionCard 
                         key={index}
@@ -77,14 +61,13 @@ export function CertificateDashboard({ ClientCall, estado, objectId, setObjectId
     );
 }
 
-// COMPONENTE: Tarjeta de Función Académica
 function AcademicFunctionCard({ config, ClientCall, estado, objectId }) {
     const [valores, setValores] = useState({});
 
     function enviar(e) {
         e.preventDefault();
         if (!objectId) {
-            alert("Primero debes ingresar el ID de la institución arriba.");
+            alert("Primero debes ingresar el ID de la institución");
             return;
         }
 
@@ -107,53 +90,56 @@ function AcademicFunctionCard({ config, ClientCall, estado, objectId }) {
         setValores(prev => ({ ...prev, [name]: value }));
     };
 
-    return (
-        <div style={{
-            border: "1px solid #eee",
-            borderRadius: "12px",
-            padding: "25px",
-            background: "#fff",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
-        }}>
-            <h3 style={{ color: "#8e44ad", marginTop: 0 }}>📝 {config.titulo}</h3>
-            <p style={{ fontSize: "14px", color: "#666", lineHeight: "1.5", marginBottom: "20px" }}>
-                {config.descripcion}
-            </p>
+    // Iconos para cada función
+    const getIcon = (funcName) => {
+        const icons = {
+            'ver_nombre': '🏛️',
+            'agregar_cliente': '👨‍🎓', 
+            'agregar_servicio': '📜',
+            'cambiar_nivel_a_oro': '⭐',
+            'aplicar_descuento': '🎯',
+            'ver_estado_cliente': '📊',
+            'retornar_todo': '📋'
+        };
+        return icons[funcName] || '⚡';
+    };
 
-            <form style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "15px"
-            }}>
+    return (
+        <div className="function-card">
+            <div className="card-header">
+                <div className="card-icon">{getIcon(config.nombreFuncion)}</div>
+                <h3 className="card-title">{config.titulo}</h3>
+            </div>
+            
+            <p className="card-description">{config.descripcion}</p>
+
+            <form style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
                 {config.inputs.map((input, idx) => (
-                    <div key={idx}>
-                        <label style={{ display: "block", fontSize: "14px", fontWeight: "bold", marginBottom: "5px", color: "#444" }}>
-                            {input.label}
-                        </label>
+                    <div key={idx} className="form-group">
+                        <label className="form-label">{input.label}</label>
                         <input 
                             type={input.type.includes('u') ? "number" : "text"}
-                            placeholder={`Ingresa ${input.label}`}
+                            placeholder={`Ingresa ${input.label.toLowerCase()}`}
+                            className="form-input"
                             onChange={(e) => handleChange(input.name, e.target.value)}
-                            style={{
-                                padding: "10px 15px",
-                                fontSize: "15px",
-                                borderRadius: "8px",
-                                border: "1px solid #ccc",
-                                width: "100%",
-                                boxSizing: "border-box"
-                            }}
                         />
                     </div>
                 ))}
 
                 <button 
-                    className='purple-button'
+                    className="btn-primary"
                     type="button"
                     disabled={estado}
-                    onClick={(e) => enviar(e)}
-                    style={{ width: "100%", marginTop: "10px" }}
+                    onClick={enviar}
                 >
-                   🎓 Ejecutar {config.nombreFuncion}
+                    {estado ? (
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'}}>
+                            <div className="loading-spinner"></div>
+                            Procesando...
+                        </div>
+                    ) : (
+                        `Ejecutar ${config.titulo}`
+                    )}
                 </button>
             </form>
         </div>

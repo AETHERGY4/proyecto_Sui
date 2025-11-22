@@ -5,6 +5,10 @@ function InstitutionForm({ ClientCall, estado, setInstitucionCreada }) {
     const [nombre, cambiarNombre] = useState("")
 
     function enviar() {
+        if (!nombre.trim()) {
+            alert("Por favor ingresa el nombre de la institución");
+            return;
+        }
         ClientCall({
             funcion,
             args: [nombre]
@@ -12,50 +16,52 @@ function InstitutionForm({ ClientCall, estado, setInstitucionCreada }) {
     }
     
     return(
-        <form style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "15px",
-          marginTop: "30px"
-        }}>
-          
-          <input 
-            type="text" 
-            placeholder="¿Cuál sería el nombre de tu institución educativa?"
-            style={{
-              padding: "12px 20px",
-              fontSize: "16px",
-              borderRadius: "8px",
-              border: "1px solid #ccc",
-              width: "100%",
-              maxWidth: "400px",
-              textAlign: "center"
-            }}
-            onChange={(e) => cambiarNombre(e.target.value)} 
-          />
+        <div className="hero-section">
+            <h1 className="hero-title">Crear Nueva Institución</h1>
+            <p className="hero-subtitle">
+                Registra tu institución educativa en blockchain para comenzar a emitir certificados digitales verificables.
+            </p>
+            
+            <div style={{maxWidth: '500px', margin: '0 auto'}}>
+                <div className="form-group">
+                    <label className="form-label">Nombre de la Institución</label>
+                    <input 
+                        type="text" 
+                        placeholder="Ej: Universidad Tecnológica Global"
+                        className="form-input"
+                        value={nombre}
+                        onChange={(e) => cambiarNombre(e.target.value)}
+                    />
+                </div>
 
-          <button 
-            className='purple-button' 
-            type="button"
-            disabled={estado}
-            style={{ width: "100%", maxWidth: "300px" }}
-            onClick={() => enviar()}
-          >
-            🎓 Crear Institución
-          </button>
+                <button 
+                    className="btn-primary"
+                    type="button"
+                    disabled={estado}
+                    onClick={enviar}
+                    style={{marginBottom: '1rem'}}
+                >
+                    {estado ? (
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'}}>
+                            <div className="loading-spinner"></div>
+                            Creando...
+                        </div>
+                    ) : (
+                        "🎓 Crear Institución"
+                    )}
+                </button>
 
-          <p style={{ fontSize: "14px", color: "#ccc", marginTop: "10px" }}>
-            ¿Ya tienes una institución registrada?{' '}
-            <span 
-              style={{ color: "#8e44ad", cursor: "pointer", textDecoration: "underline", fontWeight: "bold" }}
-              onClick={() => setInstitucionCreada(true)}
-            >
-              Acceder al panel
-            </span>
-          </p>
-
-        </form>
+                <p style={{textAlign: 'center', color: '#cbd5e1', fontSize: '0.9rem'}}>
+                    ¿Ya tienes una institución registrada?{' '}
+                    <span 
+                        style={{ color: "#fbbf24", cursor: "pointer", textDecoration: "underline", fontWeight: "600" }}
+                        onClick={() => setInstitucionCreada(true)}
+                    >
+                        Acceder al panel existente
+                    </span>
+                </p>
+            </div>
+        </div>
     )
 }
 
