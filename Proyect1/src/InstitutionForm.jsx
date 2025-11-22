@@ -1,8 +1,6 @@
 import { useState } from "react"
 
-
-
-function FormInicial({ ClientCall, estado, setNuevaEmpresa }) {
+function InstitutionForm({ ClientCall, estado, setInstitucionCreada }) {
     const funcion = "crear_empresa"
     const [nombre, cambiarNombre] = useState("")
 
@@ -16,48 +14,44 @@ function FormInicial({ ClientCall, estado, setNuevaEmpresa }) {
     return(
         <form style={{
           display: "flex",
-          flexDirection: "column", // Los elementos uno debajo del otro
-          alignItems: "center", // Centrados horizontalmente
-          gap: "15px", // Espacio entre cada elemento
-          marginTop: "30px" // Un poco de aire arriba
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "15px",
+          marginTop: "30px"
         }}>
           
-          {/* 1. Input para el nombre */}
           <input 
             type="text" 
-            placeholder="¿Cuál sería el nombre de tu empresa?"
+            placeholder="¿Cuál sería el nombre de tu institución educativa?"
             style={{
               padding: "12px 20px",
               fontSize: "16px",
               borderRadius: "8px",
               border: "1px solid #ccc",
               width: "100%",
-              maxWidth: "400px", // Que no se haga demasiado ancho en pantallas grandes
+              maxWidth: "400px",
               textAlign: "center"
             }}
             onChange={(e) => cambiarNombre(e.target.value)} 
           />
 
-          {/* 2. Botón principal */}
           <button 
             className='purple-button' 
-            // onClick={CrearEmpresa} <-- Asegúrate de llamar a tu función aquí, no en onSubmit del form por ahora
-            type="button" // Importante: evita que el form recargue la página al hacer clic
+            type="button"
             disabled={estado}
             style={{ width: "100%", maxWidth: "300px" }}
             onClick={() => enviar()}
           >
-            Crear Empresa
+            🎓 Crear Institución
           </button>
 
-          {/* 3. Texto y enlace para los que ya tienen empresa */}
           <p style={{ fontSize: "14px", color: "#ccc", marginTop: "10px" }}>
-            ¿Ya tienes una empresa creada?{' '}
+            ¿Ya tienes una institución registrada?{' '}
             <span 
               style={{ color: "#8e44ad", cursor: "pointer", textDecoration: "underline", fontWeight: "bold" }}
-              onClick={() => setNuevaEmpresa(true)}
+              onClick={() => setInstitucionCreada(true)}
             >
-              Da clic aquí
+              Acceder al panel
             </span>
           </p>
 
@@ -65,5 +59,4 @@ function FormInicial({ ClientCall, estado, setNuevaEmpresa }) {
     )
 }
 
-
-export default FormInicial
+export default InstitutionForm

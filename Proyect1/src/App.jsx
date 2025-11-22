@@ -7,8 +7,8 @@ import { useState } from 'react';
 import video from './video.mp4'
 
 import './App.css'
-import FormInicial from "./formInicial";
-import { AdminDashboard } from "./AdminDashboard";
+import InstitutionForm from "./InstitutionForm";
+import { CertificateDashboard } from "./InstitutionForm";
 
 function App() {
   const suiClient = useSuiClient()
@@ -16,7 +16,7 @@ function App() {
   const { mutate: signAndExecute } = useSignAndExecuteTransaction()
   const [estado, cambiarEstado] = useState(false);
   const [respuesta, cambiarRespuesta] = useState(null);
-  const [nuevaEmpresa, setNuevaEmpresa] = useState(false)
+  const [institucionCreada, setInstitucionCreada] = useState(false)
   const [objectId, setObjectId] = useState(() => {
     const hash = window.location.hash.slice(1);
     return isValidSuiObjectId(hash) ? hash : null;
@@ -112,7 +112,7 @@ function App() {
         const decoded = decodeReturnValues(result);
         // cambiarRespuesta(decoded);
         if (params.funcion === "retornar_todo"){
-          cambiarRespuesta(`El usuario: ${decoded[4]}, que tiene un año de registro del: ${decoded[0]}, tiene un porcentaje de descuento del: ${decoded[3]['raw'][1]}, y una direccion de facturacion: ${decoded[1]}`)
+          cambiarRespuesta(`El estudiante: ${decoded[4]}, que ingresó en el año: ${decoded[0]}, tiene un nivel académico con beneficios del: ${decoded[3]['raw'][1]}%, y reside en: ${decoded[1]}`)
         }
         
 
@@ -138,13 +138,13 @@ function App() {
             const decoded = decodeReturnValues(result);
             if (decoded !== null) cambiarRespuesta(decoded);
 
-            // Si se creó una empresa, actualizar ID
+            // Si se creó una institución, actualizar ID
             if (params.funcion === "crear_empresa") {
               const id = result.effects?.created?.[0]?.reference?.objectId;
               if (id) {
                 setObjectId(id);
                 window.location.hash = id;
-                setNuevaEmpresa(true);
+                setInstitucionCreada(true);
               }
             }
           },
@@ -161,11 +161,7 @@ function App() {
     }
   }
 
-  //
-  // ========================================
-  // DECODIFICADOR UNIVERSAL DE RETURN VALUES
-  // ========================================
-  //
+  // ... (mantener las mismas funciones de decodeReturnValues, decodeByType, etc.)
   function decodeReturnValues(result) {
     try {
       const values =
@@ -185,11 +181,6 @@ function App() {
     }
   }
 
-  //
-  // ===========================
-  // DECODIFICACIÓN POR TIPO
-  // ===========================
-  //
   function decodeByType(bytes, typeTag) {
     const arr = Uint8Array.from(bytes);
 
@@ -200,18 +191,12 @@ function App() {
     if (typeTag === "u16") return new DataView(arr.buffer).getUint16(0, true);
     if (typeTag === "u32") return new DataView(arr.buffer).getUint32(0, true);
     if (typeTag === "u64") {
-      // arr viene en formato little-endian → revertir
       const reversed = Array.from(arr).reverse();
-
-      // Convertir a hex WITHOUT Buffer
       const hex = reversed
         .map(b => b.toString(16).padStart(2, "0"))
         .join("");
-
-      // Crear BigInt desde hex
       return BigInt("0x" + hex);
     }
-
 
     if (typeTag === "bool") return arr[0] === 1;
 
@@ -233,11 +218,6 @@ function App() {
     return "<?> Tipo no soportado: " + typeTag;
   }
 
-  //
-  // ===========================
-  // DECODIFICAR STRING BCS
-  // ===========================
-  //
   function decodeBCSString(bytes) {
     const arr = Uint8Array.from(bytes);
     let length = 0;
@@ -255,16 +235,10 @@ function App() {
     return new TextDecoder().decode(content);
   }
 
-  //
-  // ===========================
-  // DECODIFICAR vector<String>
-  // ===========================
-  //
   function decodeBCSVectorString(bytes) {
     const arr = Uint8Array.from(bytes);
     let offset = 0;
 
-    // tamaño del vector
     let vecLen = 0;
     let shift = 0;
 
@@ -278,7 +252,6 @@ function App() {
     const items = [];
 
     for (let i = 0; i < vecLen; i++) {
-      // longitud del string
       let len = 0;
       shift = 0;
 
@@ -296,64 +269,41 @@ function App() {
     }
 
     return items;
-    }
+  }
 
-    //
-    // ===========================
-    // DECODIFICADOR STRUCT NIVEL
-    // ===========================
-    //
-    function decodeNivel(bytes) {
-      // const arr = Uint8Array.from(bytes);
-
-      // if (arr.length < 2) {
-      //   return { tipo: "desconocido", descuento: null };
-      // }
-
-      // const variant = arr[0];
-      // const descuento = arr[1]; // u8 directo
-
-      // const variants = ["cobre", "plata", "oro", "diamante"];
-
-      // return {
-      //   tipo: variants[variant] ?? "desconocido",
-      //   descuento
-      // };
-      return { raw: bytes };
+  function decodeNivel(bytes) {
+    return { raw: bytes };
   }
   
   return (
-
     <div>
       <video autoPlay loop playsInline muted className="back-video" >
         <source src={video} type="video.mp4"/>
       </video>
       <div className="app-header">
         <a>
-          <img className="logo" src="WayLearn_logo-horizontal_texto-blanco.png" onClick={() => setNuevaEmpresa(false)}/>
+          <img className="logo" src="WayLearn_logo-horizontal_texto-blanco.png" onClick={() => setInstitucionCreada(false)}/>
         </a>
         <ConnectButton />
       </div>
-        {!nuevaEmpresa && <h1 style={{marginTop:"200px", fontSize:"80px"}}> Crea tu Empresa con WayLearn </h1>}
+        {!institucionCreada && <h1 style={{marginTop:"200px", fontSize:"80px"}}> 🎓 Sistema de Certificados Académicos </h1>}
         {!cuenta ?  
-        <h3 style={{marginTop:"50px", fontSize:"20px"}}> Antes de continuar conecta tu wallet </h3> : ( nuevaEmpresa ?
-        <AdminDashboard 
+        <h3 style={{marginTop:"50px", fontSize:"20px"}}> 🔗 Conecta tu wallet para comenzar </h3> : ( institucionCreada ?
+        <CertificateDashboard 
           ClientCall={ClientCall}
           estado={estado}
           objectId={objectId}
           setObjectId={setObjectId}
           respuesta={respuesta}
           /> :
-        <FormInicial 
+        <InstitutionForm 
           ClientCall={ClientCall}
           estado={estado}
-          setNuevaEmpresa={setNuevaEmpresa}
+          setInstitucionCreada={setInstitucionCreada}
         />
-      
         )}
         
       <div>
-
       </div>
     </div>
   )
